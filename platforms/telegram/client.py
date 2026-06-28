@@ -15,7 +15,7 @@ from __future__ import annotations
 import asyncio
 import time
 
-from telethon import TelegramClient, functions
+from telethon import TelegramClient
 from telethon.sessions import StringSession
 from telethon.errors import (
     SessionPasswordNeededError,
