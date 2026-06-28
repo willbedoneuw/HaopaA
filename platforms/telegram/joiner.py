@@ -16,6 +16,7 @@ import asyncio
 import re
 
 from telethon import functions
+from telethon.tl.types import User
 from telethon.errors import (
     FloodWaitError,
     InviteHashExpiredError,
@@ -62,8 +63,10 @@ def _chat_from_result(result):
 
 
 def _is_group(chat) -> bool:
-    """True for mega/basic groups; False for broadcast-only channels."""
+    """True for mega/basic groups; False for broadcast channels, users, bots."""
     if chat is None:
+        return False
+    if isinstance(chat, User):
         return False
     if getattr(chat, "megagroup", False):
         return True
@@ -74,7 +77,9 @@ def _is_group(chat) -> bool:
 
 
 async def _join_link(client, link: str):
-    """Join via public username or private invite. Returns the chat entity."""
+    """Join via public username or private invite. Returns the chat entity.
+    If the link resolves to a user/bot (not joinable), returns it as-is so the
+    caller skips it instead of trying to 'join' a user."""
     m = _INVITE_HASH_RE.search(link)
     if m:
         res = await client(functions.messages.ImportChatInviteRequest(m.group(1)))
@@ -82,6 +87,8 @@ async def _join_link(client, link: str):
     m = _PUBLIC_RE.search(link)
     uname = m.group(1) if m else link.rsplit("/", 1)[-1]
     entity = await client.get_entity(uname)
+    if isinstance(entity, User):
+        return entity  # a user/bot — not joinable; caller will skip it
     res = await client(functions.channels.JoinChannelRequest(entity))
     return _chat_from_result(res) or entity
 
