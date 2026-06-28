@@ -37,15 +37,20 @@ _PUBLIC_RE = re.compile(
 
 
 def _pick_account():
-    """Pick the least-busy active account that may join right now. Discover
-    accounts are used only if there is nothing else."""
-    accounts = db.list_accounts_by_status("active")
-    allowed = [a for a in accounts if throttle.can_join(a)]
+    """Pick the least-busy active account allowed to join right now.
+
+    Discover accounts are READ-ONLY: if you have at least one dedicated
+    (non-discover) account, ONLY those ever join. Discover accounts join only
+    when there is NO non-discover account at all (so the bot still works if
+    every account happens to be a discover account)."""
+    active = db.list_accounts_by_status("active")
+    has_joiner = any(not a.get("is_discover") for a in db.list_accounts())
+    pool = [a for a in active if not a.get("is_discover")] if has_joiner else active
+    allowed = [a for a in pool if throttle.can_join(a)]
     if not allowed:
         return None
-    prefer = [a for a in allowed if not a.get("is_discover")] or allowed
-    prefer.sort(key=lambda a: int(a.get("joins_today") or 0))
-    return prefer[0]
+    allowed.sort(key=lambda a: int(a.get("joins_today") or 0))
+    return allowed[0]
 
 
 def _chat_from_result(result):
