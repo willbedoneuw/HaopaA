@@ -106,8 +106,9 @@ async def _record_group(client, account: dict, qid: int, link: str, chat,
     phone = account["phone"]
     if chat is None:
         db.set_join_status(qid, "joined", account_id=account["id"])
-        await logbus.card_join(account_phone=phone, group_title="(عضو)",
-                               link=link, ok=True)
+        if real:
+            await logbus.card_join(account_phone=phone, group_title="(عضو)",
+                                   link=link, ok=True)
         return real
     title = getattr(chat, "title", "") or ""
     if not title or not _is_group(chat):
@@ -121,7 +122,9 @@ async def _record_group(client, account: dict, qid: int, link: str, chat,
     db.recount_group_count(account["id"])
     if real:
         throttle.on_success(account)   # only a real new join counts toward cap
-    await logbus.card_join(account_phone=phone, group_title=title, link=link, ok=True)
+        # only log GENUINE new joins; already-member is recorded silently
+        await logbus.card_join(account_phone=phone, group_title=title, link=link,
+                               ok=True)
     return real
 
 
