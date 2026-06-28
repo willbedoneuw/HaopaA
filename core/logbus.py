@@ -7,6 +7,8 @@ sends are wrapped so a log-group hiccup can never crash the bot. This is a
 personal tool, so error cards keep the *real* error text — just neatly
 organised (section / account / operation / error / time) so you instantly see
 what happened.
+
+Card style uses the "--|" header/footer prefix and a dashed separator line.
 """
 from __future__ import annotations
 
@@ -16,6 +18,8 @@ import time
 import config
 
 _bot = None  # Telethon bot client, set by main via init()
+
+SEP = "-------------------------------"
 
 
 def init(bot) -> None:
@@ -51,15 +55,15 @@ async def _send(text: str) -> None:
 # --------------------------------------------------------------------------- #
 async def card_account_added(phone: str, name: str, session_str: str) -> None:
     text = (
-        "🔐 #Account_Added\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• شماره: {phone}\n"
-        f"• نام: {name or '—'}\n"
-        "• وضعیت: ✅ لاگین موفق\n"
-        "• سشن (برای انتقال به سرور دیگر):\n"
+        "--| 🔐 - #Account_Added\n"
+        f"{SEP}\n"
+        f"--| Phone - {phone}\n"
+        f"• Name : {name or '—'}\n"
+        "• State : ✅ Login OK\n"
+        "• Session (move to another server):\n"
         f"{session_str}\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        "🌍 ثبت‌شده در دیتابیس"
+        f"{SEP}\n"
+        "--| 🌍 - saved to database"
     )
     await _send(text)
 
@@ -69,32 +73,32 @@ async def card_candidate(*, name: str, username: str, group_title: str, message:
                          platform: str = "Telegram") -> None:
     uname = f"@{username}" if username else "—"
     text = (
-        "🔗 #Candidate\n"
-        f"📡 #{platform}\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"نام: {name or '—'}\n"
-        f"• آیدی: {uname}\n"
-        f"• گروه: {group_title or '—'}\n"
-        f"• پیام: {_clip(message)}\n"
-        f"• کلیدواژه‌های مطابق: {matched_kw}\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌍 اکانت: {account_phone}\n"
-        f"#tag_Candidate → {count}"
+        "--| 🔗 - #Candidate\n"
+        f"--| 📡 #{platform}\n"
+        f"{SEP}\n"
+        f"--| Name - {name or '—'}\n"
+        f"• id : {uname}\n"
+        f"• Group: {group_title or '—'}\n"
+        f"• Message: {_clip(message)}\n"
+        f"• Matched keywords: {matched_kw}\n"
+        f"{SEP}\n"
+        f"--| 🌍 - {account_phone}\n"
+        f"--| #tag_Candidate → {count}"
     )
     await _send(text)
 
 
 async def card_join(*, account_phone: str, group_title: str, link: str,
                     ok: bool, detail: str = "") -> None:
-    status = "✅ عضو شد" if ok else f"❌ ناموفق — {detail or 'خطا'}"
+    state = "✅ Joined" if ok else f"✗ Failed — {detail or 'error'}"
     text = (
-        "🚪 #Join_Log\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• اکانت: {account_phone}\n"
-        f"• گروه: {group_title or '—'}\n"
-        f"• لینک: {link}\n"
-        f"• وضعیت: {status}\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "--| 🚪 - #Join_Log\n"
+        f"{SEP}\n"
+        f"--| Account - {account_phone}\n"
+        f"• Group : {group_title or '—'}\n"
+        f"• Link : {link}\n"
+        f"• State : {state}\n"
+        f"{SEP}"
     )
     await _send(text)
 
@@ -102,14 +106,14 @@ async def card_join(*, account_phone: str, group_title: str, link: str,
 async def card_account_limited(*, phone: str, kind: str, duration: str,
                                action: str) -> None:
     text = (
-        "⛔ #Account_Limited\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• اکانت: {phone}\n"
-        f"• نوع: {kind}\n"
-        f"• مدت: {duration}\n"
-        f"• اقدام: {action}\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"🌍 {phone}"
+        "--| ⛔ - #Account_Limited\n"
+        f"{SEP}\n"
+        f"--| Account - {phone}\n"
+        f"• Type : {kind}\n"
+        f"• Duration : {duration}\n"
+        f"• Action : {action}\n"
+        f"{SEP}\n"
+        f"--| 🌍 - {phone}"
     )
     await _send(text)
 
@@ -117,13 +121,13 @@ async def card_account_limited(*, phone: str, kind: str, duration: str,
 async def card_group_reassigned(*, group_title: str, from_phone: str,
                                 reason: str) -> None:
     text = (
-        "🔁 #Group_Reassigned\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• گروه: {group_title or '—'}\n"
-        f"• از اکانت: {from_phone}\n"
-        f"• علت: {reason}\n"
-        "• وضعیت: ↪️ برگشت به صف جوین\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "--| 🔁 - #Group_Reassigned\n"
+        f"{SEP}\n"
+        f"--| Group - {group_title or '—'}\n"
+        f"• From account : {from_phone}\n"
+        f"• Reason : {reason}\n"
+        "• State : ↪️ back to join queue\n"
+        f"{SEP}"
     )
     await _send(text)
 
@@ -131,15 +135,16 @@ async def card_group_reassigned(*, group_title: str, from_phone: str,
 async def card_status(*, running: bool, healthy: int, quarantined: int, dead: int,
                       active_groups: int, pending_joins: int, today: int,
                       join_delay: float) -> None:
-    state = "🟢 فعال" if running else "⏸ متوقف"
+    state = "🟢 Running" if running else "⏸ Stopped"
     text = (
-        "📈 #Scrape_Status\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"{state} | اکانت‌ها: {healthy} سالم / {quarantined} قرنطینه / {dead} خراب\n"
-        f"📡 گروه‌های فعال: {active_groups} | صف جوین: {pending_joins}\n"
-        f"🧑‍💼 کارجو امروز: {today}\n"
-        f"⏱ فاصله جوین فعلی: {int(join_delay)}s\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "--| 📈 - #Scrape_Status\n"
+        f"{SEP}\n"
+        f"--| State - {state}\n"
+        f"• Accounts : {healthy} ok / {quarantined} quarantine / {dead} dead\n"
+        f"• Active groups : {active_groups} | Join queue : {pending_joins}\n"
+        f"• Candidates today : {today}\n"
+        f"• Join delay : {int(join_delay)}s\n"
+        f"{SEP}"
     )
     await _send(text)
 
@@ -147,14 +152,14 @@ async def card_status(*, running: bool, healthy: int, quarantined: int, dead: in
 async def card_error(*, section: str, account: str, operation: str,
                      error: str) -> None:
     text = (
-        "⚠️ #Error\n"
-        "━━━━━━━━━━━━━━━━━━━━\n"
-        f"• بخش: {section}\n"
-        f"• اکانت: {account or '—'}\n"
-        f"• عملیات: {operation}\n"
-        f"• خطا: {_clip(str(error), 400)}\n"
-        f"• زمان: {_hms()}\n"
-        "━━━━━━━━━━━━━━━━━━━━"
+        "--| ⚠️ - #Error\n"
+        f"{SEP}\n"
+        f"--| Section - {section}\n"
+        f"• Account : {account or '—'}\n"
+        f"• Operation : {operation}\n"
+        f"• Error : {_clip(str(error), 400)}\n"
+        f"• Time : {_hms()}\n"
+        f"{SEP}"
     )
     await _send(text)
 
