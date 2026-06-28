@@ -24,6 +24,7 @@ from telethon.errors import (
     ChannelsTooMuchError,
     PeerFloodError,
     ChannelPrivateError,
+    InviteRequestSentError,
 )
 
 import config
@@ -158,6 +159,14 @@ async def _do_join(account: dict, item: dict) -> bool:
             # request was sent; the group is already recorded (a prior join or
             # _sync_dialogs at startup), so just close this duplicate link.
             db.set_join_status(qid, "joined", account_id=account["id"])
+            return True
+        except InviteRequestSentError:
+            # group needs ADMIN APPROVAL — the join request was sent and is
+            # pending. Not an error and must NOT be retried; close it cleanly.
+            db.set_join_status(qid, "failed")
+            await logbus.card_join(
+                account_phone=phone, group_title="", link=link, ok=False,
+                detail="⏳ درخواست عضویت فرستاده شد (نیاز به تأیید ادمین)")
             return True
         except (InviteHashExpiredError, InviteHashInvalidError, ChannelPrivateError) as e:
             db.set_join_status(qid, "failed")
