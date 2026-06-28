@@ -1,0 +1,5 @@
+# Target Scraper — Telegram-only userbot scraper (raw data collection).
+# Pin major versions for reproducible installs.
+telethon>=1.34,<2.0
+cryptography>=42.0
+python-dotenv>=1.0

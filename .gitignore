@@ -1,0 +1,20 @@
+# --- Target Scraper ---
+# Secrets / runtime data — never commit these.
+.env
+data/
+*.session
+*.session-journal
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+*.swp
+*.log
