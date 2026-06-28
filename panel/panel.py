@@ -361,6 +361,8 @@ async def _finalize_login(event, owner: int, ctx: dict) -> None:
     # if the engine is already working, start scraping this account right away.
     if db.is_running():
         try:
+            # detach first so a re-login re-attaches the handler to the NEW client
+            await scraper.detach_account(phone)
             await scraper.attach_account(phone)
         except Exception as e:  # noqa: BLE001
             await logbus.log_error("اسکرپ", "اتصال اکانت جدید", e, account=phone)

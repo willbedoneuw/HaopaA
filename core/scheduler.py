@@ -82,7 +82,12 @@ async def maintenance_loop(should_run) -> None:
             last = db.get_setting("last_daily_run", "")
             today = _today_key()
             now_hour = datetime.datetime.now().hour
-            if last != today and now_hour >= config.SEED_REFRESH_HOUR:
+            try:
+                refresh_hour = int(db.get_setting("cfg_refresh_hour",
+                                                  config.SEED_REFRESH_HOUR))
+            except Exception:  # noqa: BLE001
+                refresh_hour = config.SEED_REFRESH_HOUR
+            if last != today and now_hour >= refresh_hour:
                 db.reset_joins_today_all()
                 _advance_warmup()
                 db.set_setting("last_daily_run", today)

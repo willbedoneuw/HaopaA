@@ -88,6 +88,14 @@ async def commit_login(ctx: dict) -> dict:
     session_str = client.session.save()
     db.upsert_account(phone, info.get("name", ""), info.get("username", ""),
                       info.get("user_id"), crypto_util.encrypt(session_str))
+    # If this account was already warm (e.g. re-login of a dead account),
+    # drop the stale client so we don't keep two connections to one session.
+    old = _clients.get(phone)
+    if old is not None and old is not client:
+        try:
+            await old.disconnect()
+        except Exception:  # noqa: BLE001
+            pass
     _clients[phone] = client
     info["session_str"] = session_str
     return info
