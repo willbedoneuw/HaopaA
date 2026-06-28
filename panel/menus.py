@@ -132,7 +132,10 @@ def join_queue_view():
     return (
         f"⏳ صفِ جوین\n\n• در انتظار: {pending}\n\n"
         "این‌ها به‌ترتیب و با فاصله‌ی امن جوین می‌شن.",
-        [[Button.inline("⬅️ بازگشت", b"src")]],
+        [
+            [Button.inline("🧹 پاک‌کردنِ صف جوین", b"jq_clear")],
+            [Button.inline("⬅️ بازگشت", b"src")],
+        ],
     )
 
 

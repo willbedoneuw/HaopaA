@@ -346,6 +346,16 @@ def count_pending_joins() -> int:
     return row["c"] if row else 0
 
 
+def clear_join_queue() -> int:
+    """Delete all not-yet-joined items (pending + failed) from the queue.
+    Returns how many rows were removed. Joined history is left intact."""
+    row = _query_one(
+        "SELECT COUNT(*) AS c FROM join_queue WHERE status IN ('pending','failed')")
+    n = row["c"] if row else 0
+    _write("DELETE FROM join_queue WHERE status IN ('pending','failed')", ())
+    return n
+
+
 def requeue_account_pending(account_id: int) -> int:
     """Send an account's *pending* (not-yet-joined) queue items back to the
     unassigned pool so another account can take them. Returns how many."""

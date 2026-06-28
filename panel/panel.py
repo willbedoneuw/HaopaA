@@ -70,6 +70,19 @@ async def _respond(event, builder, *args) -> None:
         pass
 
 
+async def _edit_raw(event, text: str, buttons) -> None:
+    """Edit the message with explicit text + buttons (not a menu builder)."""
+    try:
+        await event.edit(text, buttons=buttons, link_preview=False)
+    except MessageNotModifiedError:
+        pass
+    except Exception:  # noqa: BLE001
+        try:
+            await event.respond(text, buttons=buttons, link_preview=False)
+        except Exception:  # noqa: BLE001
+            pass
+
+
 async def _prompt(event, text: str, back: bytes = b"main") -> None:
     try:
         await event.edit(text, buttons=[[Button.inline("⬅️ انصراف", back)]],
@@ -197,6 +210,18 @@ async def _dispatch(event, owner: int, data: str) -> None:
         return await _edit(event, menus.groups_list)
     if data == "jq_view":
         return await _edit(event, menus.join_queue_view)
+    if data == "jq_clear":
+        pending = db.count_pending_joins()
+        return await _edit_raw(
+            event,
+            f"🧹 پاک‌کردنِ صف جوین\n\n{pending} لینک در انتظاره.\nمطمئنی همه پاک شن؟",
+            [[Button.inline("✅ بله، پاک کن", b"jq_clear_yes")],
+             [Button.inline("⬅️ انصراف", b"src")]])
+    if data == "jq_clear_yes":
+        n = db.clear_join_queue()
+        return await _edit_raw(
+            event, f"✅ {n} لینک از صف جوین پاک شد.",
+            [[Button.inline("⬅️ بازگشت", b"src")]])
     if data == "discover_now":
         await event.answer("در حال جستجو…")
         try:
