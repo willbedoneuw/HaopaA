@@ -218,7 +218,19 @@ async def _dispatch(event, owner: int, data: str) -> None:
         phone = data.split(":", 1)[1]
         acc = db.get_account(phone)
         if acc:
-            db.set_discover(phone, not acc.get("is_discover"))
+            new_flag = not acc.get("is_discover")
+            db.set_discover(phone, new_flag)
+            try:
+                if new_flag:
+                    # became read-only: stop scraping + hand off its groups
+                    await scraper.detach_account(phone)
+                    db.reassign_account_groups(acc["id"])
+                    db.recount_group_count(acc["id"])
+                elif db.is_running():
+                    # became a scraper account: start scraping
+                    await scraper.attach_account(phone)
+            except Exception as e:  # noqa: BLE001
+                await logbus.log_error("اکانت", "تغییر نقش کاوشگر", e, account=phone)
         return await _edit(event, menus.accounts_discover_toggle)
     if data == "acc_health":
         await event.answer("در حال بررسی…")

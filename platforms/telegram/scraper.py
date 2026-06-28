@@ -182,6 +182,9 @@ async def attach_account(phone: str) -> bool:
     account = db.get_account(phone)
     if not account:
         return False
+    if account.get("is_discover"):
+        # Discover accounts are read-only: they only find links, never scrape.
+        return False
     try:
         client = await tg.get_client(phone)
         try:
@@ -224,10 +227,15 @@ async def start() -> int:
         _writer_task = asyncio.create_task(_writer_loop())
     attached = 0
     for acc in db.list_accounts():
-        # Everything except a dead session should keep scraping — a join-limited
-        # or "full" account still reads the groups it already belongs to.
         if acc.get("status") == "dead":
             continue
+        if acc.get("is_discover"):
+            # read-only: it must not scrape. Hand off any groups it had joined
+            # so a scraper account takes them, and don't record its memberships.
+            db.reassign_account_groups(acc["id"])
+            db.recount_group_count(acc["id"])
+            continue
+        # scraper account: a join-limited / "full" one still keeps scraping.
         if await attach_account(acc["phone"]):
             attached += 1
     return attached
