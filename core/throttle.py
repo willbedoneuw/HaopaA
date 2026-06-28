@@ -123,7 +123,6 @@ def on_success(account: dict) -> None:
     if streak >= config.SUCCESS_STREAK_THRESHOLD:
         delay = max(cfg_floor(), delay * config.DELAY_DECREASE_FACTOR)
         streak = 0
-    db.inc_joins_today(phone)
     db.update_throttle_state(phone, join_delay=delay, success_streak=streak)
 
 

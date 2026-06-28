@@ -92,114 +92,97 @@ async def _leave(client, chat) -> None:
         pass
 
 
-async def _resolve_chat(client, link: str):
-    """Resolve the chat entity for a link even when we're ALREADY a member.
-    For invite links, CheckChatInvite returns the chat if already joined."""
-    m = _INVITE_HASH_RE.search(link)
-    if m:
-        res = await client(functions.messages.CheckChatInviteRequest(m.group(1)))
-        return getattr(res, "chat", None)
-    m = _PUBLIC_RE.search(link)
-    uname = m.group(1) if m else link.rsplit("/", 1)[-1]
-    return await client.get_entity(uname)
-
-
-async def _record_group(client, account: dict, qid: int, link: str, chat,
-                        *, real: bool) -> bool:
-    """Record a joined/already-member group (or skip non-groups). ``real`` is
-    True only for an actual new join (so it counts toward the throttle)."""
+async def _record_group(client, account: dict, qid: int, link: str, chat) -> None:
+    """Record a newly-joined group (or skip a non-group)."""
     phone = account["phone"]
     if chat is None:
         db.set_join_status(qid, "joined", account_id=account["id"])
-        if real:
-            await logbus.card_join(account_phone=phone, group_title="(عضو)",
-                                   link=link, ok=True)
-        return real
+        await logbus.card_join(account_phone=phone, group_title="(عضو)",
+                               link=link, ok=True)
+        return
     title = getattr(chat, "title", "") or ""
     if not title or not _is_group(chat):
         await _leave(client, chat)
         db.set_join_status(qid, "failed")
         await logbus.card_join(account_phone=phone, group_title=title, link=link,
                                ok=False, detail="گروه نبود (کانال/کاربر)")
-        return real
+        return
     db.set_join_status(qid, "joined", account_id=account["id"])
     db.add_group(link, getattr(chat, "id", None), title, account["id"])
     db.recount_group_count(account["id"])
-    if real:
-        throttle.on_success(account)   # only a real new join counts toward cap
-        # only log GENUINE new joins; already-member is recorded silently
-        await logbus.card_join(account_phone=phone, group_title=title, link=link,
-                               ok=True)
-    return real
+    throttle.on_success(account)   # streak / speed-up only (cap is counted elsewhere)
+    await logbus.card_join(account_phone=phone, group_title=title, link=link, ok=True)
 
 
 async def _do_join(account: dict, item: dict) -> bool:
-    """Attempt one join. Returns True if a REAL join action happened (so the
-    loop paces it), False for already-member / no-action cases."""
+    """Attempt one join. The daily cap counts every join REQUEST actually sent
+    to Telegram (success, already-member, bad link, flood) — Telegram limits
+    *attempts*, not just successes. Returns True if a request was sent (so the
+    loop paces it with the full safe delay)."""
     phone = account["phone"]
     link = item["link"]
     qid = item["id"]
     db.set_join_status(qid, "pending", account_id=account["id"])
     db.inc_join_tries(qid)
-    already = False
+    attempted = False
     try:
-        async with tg.lock(phone):
-            client = await tg.get_client(phone)
-            chat = await asyncio.wait_for(_join_link(client, link), timeout=60)
-    except FloodWaitError as e:
-        secs = int(getattr(e, "seconds", 60))
-        throttle.on_floodwait(account, secs)
-        await logbus.card_account_limited(
-            phone=phone, kind="FloodWait", duration=f"{secs}s",
-            action="⏸ جوین متوقف شد | ✅ اسکرپ ادامه دارد")
-        return True
-    except PeerFloodError as e:
-        throttle.on_peerflood(account)
-        moved = db.requeue_account_pending(account["id"])
-        await logbus.card_account_limited(
-            phone=phone, kind="PeerFlood", duration="چند ساعت",
-            action=f"⏸ جوین متوقف | 🔁 {moved} جوین معطل به اکانت دیگر")
-        await logbus.log_error("جوین", "ImportChatInvite/Join", e, account=phone)
-        return True
-    except ChannelsTooMuchError as e:
-        db.set_account_status(phone, "full")
-        moved = db.requeue_account_pending(account["id"])
-        await logbus.card_account_limited(
-            phone=phone, kind="اکانت پُر", duration="—",
-            action=f"📦 پُر شد | 🔁 {moved} جوین معطل به اکانت دیگر")
-        await logbus.log_error("جوین", "Join (full)", e, account=phone)
-        return True
-    except UserAlreadyParticipantError:
-        already = True
-        chat = None  # resolve the real chat below so we still record it
-    except (InviteHashExpiredError, InviteHashInvalidError, ChannelPrivateError) as e:
-        db.set_join_status(qid, "failed")
-        await logbus.card_join(account_phone=phone, group_title="", link=link,
-                               ok=False, detail="لینک منقضی/نامعتبر/خصوصی")
-        await logbus.log_error("جوین", "Join (bad link)", e, account=phone)
-        return True
-    except RuntimeError as e:
-        # account session problem — leave item pending for another account
-        await logbus.log_error("جوین", "اتصال اکانت", e, account=phone)
-        return False
-    except Exception as e:  # noqa: BLE001
-        if int(item.get("tries") or 0) + 1 >= 3:
-            db.set_join_status(qid, "failed")
-        await logbus.card_join(account_phone=phone, group_title="", link=link,
-                               ok=False, detail=type(e).__name__)
-        await logbus.log_error("جوین", "Join", e, account=phone)
-        return True
-
-    # If the result didn't include the chat (or we were already a member),
-    # resolve it so the group is still recorded and shown in the panel.
-    if chat is None:
         try:
             async with tg.lock(phone):
                 client = await tg.get_client(phone)
-                chat = await asyncio.wait_for(_resolve_chat(client, link), timeout=30)
-        except Exception:  # noqa: BLE001
-            chat = None
-    return await _record_group(client, account, qid, link, chat, real=not already)
+                attempted = True   # about to send a real join request
+                chat = await asyncio.wait_for(_join_link(client, link), timeout=60)
+        except FloodWaitError as e:
+            secs = int(getattr(e, "seconds", 60))
+            throttle.on_floodwait(account, secs)
+            await logbus.card_account_limited(
+                phone=phone, kind="FloodWait", duration=f"{secs}s",
+                action="⏸ جوین متوقف شد | ✅ اسکرپ ادامه دارد")
+            return True
+        except PeerFloodError as e:
+            throttle.on_peerflood(account)
+            moved = db.requeue_account_pending(account["id"])
+            await logbus.card_account_limited(
+                phone=phone, kind="PeerFlood", duration="چند ساعت",
+                action=f"⏸ جوین متوقف | 🔁 {moved} جوین معطل به اکانت دیگر")
+            await logbus.log_error("جوین", "Join", e, account=phone)
+            return True
+        except ChannelsTooMuchError as e:
+            db.set_account_status(phone, "full")
+            moved = db.requeue_account_pending(account["id"])
+            await logbus.card_account_limited(
+                phone=phone, kind="اکانت پُر", duration="—",
+                action=f"📦 پُر شد | 🔁 {moved} جوین معطل به اکانت دیگر")
+            await logbus.log_error("جوین", "Join (full)", e, account=phone)
+            return True
+        except UserAlreadyParticipantError:
+            # request was sent; the group is already recorded (a prior join or
+            # _sync_dialogs at startup), so just close this duplicate link.
+            db.set_join_status(qid, "joined", account_id=account["id"])
+            return True
+        except (InviteHashExpiredError, InviteHashInvalidError, ChannelPrivateError) as e:
+            db.set_join_status(qid, "failed")
+            await logbus.card_join(account_phone=phone, group_title="", link=link,
+                                   ok=False, detail="لینک منقضی/نامعتبر/خصوصی")
+            await logbus.log_error("جوین", "Join (bad link)", e, account=phone)
+            return True
+        except RuntimeError as e:
+            # session problem — no request sent; leave item pending
+            await logbus.log_error("جوین", "اتصال اکانت", e, account=phone)
+            return False
+        except Exception as e:  # noqa: BLE001
+            if int(item.get("tries") or 0) + 1 >= 3:
+                db.set_join_status(qid, "failed")
+            await logbus.card_join(account_phone=phone, group_title="", link=link,
+                                   ok=False, detail=type(e).__name__)
+            await logbus.log_error("جوین", "Join", e, account=phone)
+            return True
+        await _record_group(client, account, qid, link, chat)
+        return True
+    finally:
+        # Count EVERY join request that actually went to Telegram against the
+        # daily cap — this is what really protects the account from flood/bans.
+        if attempted:
+            db.inc_joins_today(phone)
 
 
 async def joiner_loop(should_run) -> None:
@@ -218,13 +201,13 @@ async def joiner_loop(should_run) -> None:
                 # everyone is capped / quarantined — wait and retry later.
                 await asyncio.sleep(config.JOINER_IDLE_SLEEP)
                 continue
-            real = await _do_join(account, item)
-            if real:
-                # space REAL joins using this account's adaptive delay.
+            attempted = await _do_join(account, item)
+            if attempted:
+                # a join request was sent -> pace it with the full safe delay.
                 fresh = db.get_account(account["phone"]) or account
                 await asyncio.sleep(throttle.jittered_delay(fresh))
             else:
-                # already-member / session issue: no join action -> move on fast.
+                # no request sent (session issue) -> move on quickly.
                 await asyncio.sleep(2)
         except asyncio.CancelledError:
             raise
