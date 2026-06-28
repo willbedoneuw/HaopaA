@@ -154,6 +154,26 @@ async def _writer_loop():
             _cand_queue.task_done()
 
 
+async def _sync_dialogs(client, account_id: int) -> None:
+    """Register every group the account is CURRENTLY a member of, so the panel
+    reflects reality (including groups it already belonged to before being
+    added to the bot). Read-only — no joining."""
+    try:
+        async for d in client.iter_dialogs():
+            try:
+                if getattr(d, "is_group", False):
+                    ent = d.entity
+                    uname = getattr(ent, "username", None)
+                    link = f"https://t.me/{uname}" if uname else ""
+                    db.add_group(link, getattr(ent, "id", None),
+                                 getattr(ent, "title", "") or "", account_id)
+            except Exception:  # noqa: BLE001
+                continue
+        db.recount_group_count(account_id)
+    except Exception as e:  # noqa: BLE001
+        await logbus.log_error("اسکرپ", "ثبت گروه‌های فعلی اکانت", e)
+
+
 async def attach_account(phone: str) -> bool:
     """Warm an account's client (with catch_up) and attach its scrape handler.
     Returns True on success."""
@@ -168,6 +188,7 @@ async def attach_account(phone: str) -> bool:
             await client.catch_up()  # fill anything missed while offline
         except Exception:  # noqa: BLE001
             pass
+        await _sync_dialogs(client, account["id"])  # record current memberships
         cb = _make_handler(phone, account["id"])
         client.add_event_handler(cb, events.NewMessage(incoming=True))
         cb_leave = _make_leave_handler(phone, account["id"], account.get("user_id"))
