@@ -347,12 +347,16 @@ def count_pending_joins() -> int:
 
 
 def clear_join_queue() -> int:
-    """Delete all not-yet-joined items (pending + failed) from the queue.
-    Returns how many rows were removed. Joined history is left intact."""
+    """Mark all not-yet-joined items (pending + failed) as 'skipped'. They
+    leave the active queue AND are never re-added by discovery again (the
+    enqueue check blocks any link already in the table). This is what the user
+    wants: clearing that does NOT cause the same old links to be re-requested.
+    Returns how many were affected."""
     row = _query_one(
         "SELECT COUNT(*) AS c FROM join_queue WHERE status IN ('pending','failed')")
     n = row["c"] if row else 0
-    _write("DELETE FROM join_queue WHERE status IN ('pending','failed')", ())
+    _write("UPDATE join_queue SET status='skipped' "
+           "WHERE status IN ('pending','failed')", ())
     return n
 
 

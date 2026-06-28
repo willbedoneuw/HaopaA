@@ -214,13 +214,15 @@ async def _dispatch(event, owner: int, data: str) -> None:
         pending = db.count_pending_joins()
         return await _edit_raw(
             event,
-            f"🧹 پاک‌کردنِ صف جوین\n\n{pending} لینک در انتظاره.\nمطمئنی همه پاک شن؟",
+            f"🧹 پاک‌کردنِ صف جوین\n\n{pending} لینک در انتظاره.\n"
+            "با تأیید، از صف خارج می‌شن و دیگه دوباره درخواست نمی‌شن.\nمطمئنی؟",
             [[Button.inline("✅ بله، پاک کن", b"jq_clear_yes")],
              [Button.inline("⬅️ انصراف", b"src")]])
     if data == "jq_clear_yes":
         n = db.clear_join_queue()
         return await _edit_raw(
-            event, f"✅ {n} لینک از صف جوین پاک شد.",
+            event,
+            f"✅ {n} لینک از صف خارج شد و دیگه درخواست نمی‌شن.",
             [[Button.inline("⬅️ بازگشت", b"src")]])
     if data == "discover_now":
         await event.answer("در حال جستجو…")
