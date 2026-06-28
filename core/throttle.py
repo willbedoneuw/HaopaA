@@ -55,13 +55,32 @@ def cfg_ceil() -> float:
     return _ov_float("delay_ceil", config.JOIN_DELAY_CEIL)
 
 
+def cfg_warmup_stages() -> list:
+    """Warmup ramp, editable from the panel (cfg_warmup). Examples:
+    "5,10,20,30" -> ramp; "off"/"0"/empty -> warmup disabled (use daily cap)."""
+    raw = db.get_setting("cfg_warmup")
+    if raw is None:
+        return list(config.WARMUP_STAGES)
+    raw = str(raw).strip().lower()
+    if raw in ("off", "0", "none", ""):
+        return []
+    try:
+        stages = [int(x) for x in raw.replace(" ", "").split(",") if x]
+        return stages or []
+    except Exception:  # noqa: BLE001
+        return list(config.WARMUP_STAGES)
+
+
 def effective_daily_cap(account: dict) -> int:
-    """Daily join cap, honouring the warmup ramp for young accounts."""
+    """Daily join cap. With warmup enabled, a young account ramps up; with
+    warmup off, it's simply the daily cap."""
+    cap = cfg_daily_cap()
+    stages = cfg_warmup_stages()
+    if not stages:
+        return cap
     stage = int(account.get("warmup_stage") or 0)
-    stages = config.WARMUP_STAGES
     stage = max(0, min(stage, len(stages) - 1))
-    warm = stages[stage]
-    return min(cfg_daily_cap(), warm)
+    return min(cap, stages[stage])
 
 
 def can_join(account: dict) -> bool:

@@ -228,6 +228,8 @@ def settings_menu():
 # Technical / engine settings.
 # --------------------------------------------------------------------------- #
 def tech_menu():
+    stages = throttle.cfg_warmup_stages()
+    warm_txt = " → ".join(str(x) for x in stages) if stages else "خاموش"
     text = (
         "🔧 تنظیماتِ فنی\n\n"
         "📥 روشِ دریافت: زنگِ درِ تلگرام (بلادرنگ) ✅\n"
@@ -238,10 +240,11 @@ def tech_menu():
         f"   • کفِ فاصله: {int(throttle.cfg_floor())}s | "
         f"سقف: {int(throttle.cfg_ceil())}s\n"
         f"   • سقفِ جوینِ روزانه‌ی هر اکانت: {throttle.cfg_daily_cap()}\n"
-        f"   • گرم‌کردنِ اکانتِ نو: {' → '.join(str(x) for x in config.WARMUP_STAGES)}"
+        f"   • گرم‌کردنِ اکانتِ نو: {warm_txt}"
     )
     buttons = [
-        [Button.inline("✏️ سقفِ روزانه", b"set_cap")],
+        [Button.inline("✏️ سقفِ روزانه", b"set_cap"),
+         Button.inline("✏️ گرم‌کردن (warmup)", b"set_warmup")],
         [Button.inline("✏️ کفِ فاصله", b"set_floor"),
          Button.inline("✏️ سقفِ فاصله", b"set_ceil")],
         [Button.inline("⬅️ بازگشت", b"main")],

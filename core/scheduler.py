@@ -18,6 +18,7 @@ import datetime
 
 import config
 from core import db, logbus
+from core import throttle
 from platforms.telegram import discover
 
 
@@ -103,7 +104,10 @@ async def maintenance_loop(should_run) -> None:
 
 
 def _advance_warmup() -> None:
-    max_stage = len(config.WARMUP_STAGES) - 1
+    stages = throttle.cfg_warmup_stages()
+    if not stages:
+        return
+    max_stage = len(stages) - 1
     for acc in db.list_accounts():
         stage = int(acc.get("warmup_stage") or 0)
         if stage < max_stage:

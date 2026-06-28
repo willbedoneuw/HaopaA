@@ -252,6 +252,12 @@ async def _dispatch(event, owner: int, data: str) -> None:
     if data == "set_ceil":
         _set_pending(owner, "set_ceil")
         return await _prompt(event, "✏️ سقفِ فاصله‌ی جوین (ثانیه) رو بفرست:", b"tech")
+    if data == "set_warmup":
+        _set_pending(owner, "set_warmup")
+        return await _prompt(
+            event,
+            "✏️ مراحلِ گرم‌کردن رو بفرست (مثلاً: 5,10,20,30)\n"
+            "برای خاموش‌کردنِ گرم‌کردن بنویس: off", b"tech")
 
 
 # --------------------------------------------------------------------------- #
@@ -294,6 +300,16 @@ async def _on_text(event) -> None:
             await _respond(event, menus.tech_menu)
         elif mode == "set_ceil":
             db.set_setting("cfg_delay_ceil", max(1, int(text)))
+            _clear_pending(owner)
+            await _respond(event, menus.tech_menu)
+        elif mode == "set_warmup":
+            val = text.strip().lower()
+            if val in ("off", "0", "none", "خاموش"):
+                db.set_setting("cfg_warmup", "off")
+            else:
+                # validate it's a comma list of numbers
+                stages = [int(x) for x in val.replace(" ", "").split(",") if x]
+                db.set_setting("cfg_warmup", ",".join(str(s) for s in stages))
             _clear_pending(owner)
             await _respond(event, menus.tech_menu)
         elif mode in ("onb_phone", "onb_code", "onb_pass"):
